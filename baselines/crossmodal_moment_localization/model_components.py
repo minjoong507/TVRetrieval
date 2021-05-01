@@ -315,3 +315,37 @@ class BertSelfOutput(nn.Module):
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
+
+
+class QueryFilter(nn.Module):
+    def __init__(self, config):
+        super(QueryFilter, self).__init__()
+        self.memory_update_attention = BertSelfAttention(config)
+
+        self.mc = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
+        self.sc = nn.Linear(config.hidden_size, config.hidden_size, bias=True)
+
+        self.mz = nn.Linear(config.hidden_size, config.hidden_size, bias=False)
+        self.sz = nn.Linear(config.hidden_size, config.hidden_size, bias=True)
+
+    def forward(self, query, input_states, attention_mask):
+        """ This module should have access to all the text at this step,
+        since its state will not be used for generation at current step
+        Args:
+            query: (N, M, D), M is memory size
+            input_states: (N, L, D)
+            attention_mask: (N, L)
+        Returns:
+
+        """
+        # memory attended inputs
+        n_memory_cells = query.shape[1]
+        update_mask = attention_mask.unsqueeze(1).repeat(1, n_memory_cells, 1)  # (N, M, L)
+        s_t = self.memory_update_attention(query, input_states, input_states, update_mask)  # (N, M, D),
+
+        c_t = torch.tanh(self.mc(query) + self.sc(s_t))  # (N, M, D)
+
+        z_t = torch.sigmoid(self.mz(query) + self.sz(s_t))  # (N, M, D)
+
+        updated_query = (1 - z_t) * c_t + z_t * query  # (N, M, D)
+        return updated_query

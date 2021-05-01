@@ -172,6 +172,7 @@ class BaseOptions(object):
                                       "(or non-minimum suppression for distance)"
                                       "to post-processing the predictions. "
                                       "-1: do not use nms. 0.6 for charades_sta, 0.5 for anet_cap,")
+        self.parser.add_argument("--use_filter", type=str, default=True, help="update a start query to end query")
 
     def display_save(self, opt):
         args = vars(opt)
