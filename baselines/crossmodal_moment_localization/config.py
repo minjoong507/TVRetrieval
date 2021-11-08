@@ -49,7 +49,7 @@ class BaseOptions(object):
                                  help="Proportion of training to perform linear learning rate warmup for. "
                                       "E.g., 0.1 = 10% of training.")
         self.parser.add_argument("--wd", type=float, default=0.01, help="weight decay")
-        self.parser.add_argument("--n_epoch", type=int, default=100, help="number of epochs to run")
+        self.parser.add_argument("--n_epoch", type=int, default=1, help="number of epochs to run")
         self.parser.add_argument("--max_es_cnt", type=int, default=10,
                                  help="number of epochs to early stop, use -1 to disable early stop")
         self.parser.add_argument("--stop_task", type=str, default="VCMR", choices=["VCMR", "SVMR", "VR"],

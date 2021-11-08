@@ -231,11 +231,43 @@ class XML(nn.Module):
                                          video_feat1, video_feat2, video_mask,
                                          sub_feat1, sub_feat2, sub_mask, cross=False)
 
+        print('sub mask {} {}'.format(sub_mask, sub_mask[0]))
+
+        num_sampling = 1
+        sub_sampling = torch.randint(0, video_feat1.size(1) - 1, (num_sampling,))
+        sub_sampling, _ = torch.sort(sub_sampling)
+
+        sub_st_prob_list, sub_ed_prob_list = torch.zeros((num_sampling, sub_feat.size(0), sub_feat.size(1))), torch.zeros((num_sampling, sub_feat.size(0), sub_feat.size(1)))
+
+        for i in range(len(sub_sampling)):
+            sub_st_prob, sub_ed_prob = self.get_pred_from_subtitle(video_feat1, video_mask, sub_feat1[:,sub_sampling[i],:])
+            sub_st_prob_list[i] = sub_st_prob
+            sub_ed_prob_list[i] = sub_ed_prob
+
+        sub_st_prob_list = sub_st_prob_list.view(-1, sub_st_prob_list.size(2))
+        sub_ed_prob_list = sub_ed_prob_list.view(-1, sub_ed_prob_list.size(2))
+
+        target_st, target_ed = sub_sampling, sub_sampling + 1
+        print('sampling : {}, {}'.format(target_st, target_ed))
+        target_st, target_ed = target_st.repeat(sub_feat.size(0)), target_ed.repeat(sub_feat.size(0))
+
+
+        # print('pred st, ed : {} , target st, ed  {}'.format(sub_st_prob_list.shape, target_st.shape))
+        #
+        vsm_st_loss = self.temporal_criterion(sub_st_prob_list, target_st)
+        vsm_ed_loss = self.temporal_criterion(sub_ed_prob_list, target_ed)
+        print('vsm loss : {}, {}'.format(vsm_st_loss, vsm_ed_loss))
+
+        #
+        # print('pred st, ed : {} , target st, ed  {}'.format(st_prob.shape, st_ed_indices[:, 0].shape))
+
         loss_st_ed = 0
         if self.config.lw_st_ed != 0:
+            print("label {}, {}, {}, {}".format(st_prob[0], st_ed_indices[0,0], ed_prob[0], st_ed_indices[0,1]))
             loss_st = self.temporal_criterion(st_prob, st_ed_indices[:, 0])
             loss_ed = self.temporal_criterion(ed_prob, st_ed_indices[:, 1])
             loss_st_ed = loss_st + loss_ed
+        print('sted {}'.format(loss_st_ed))
 
         loss_neg_ctx, loss_neg_q = 0, 0
         if self.config.lw_neg_ctx != 0 or self.config.lw_neg_q != 0:
@@ -479,9 +511,56 @@ class XML(nn.Module):
                 st_prob = self.combine_st_conv(torch.cat(st_prob_list, dim=2)).view(n_q, n_c, l)
                 ed_prob = self.combine_ed_conv(torch.cat(ed_prob_list, dim=2)).view(n_q, n_c, l)
         else:
+            # print("vid, sub, query, query : {} {} {} {}".format(video_feat.shape, sub_feat.shape, video_query.shape, sub_query.shape))
             video_similarity = torch.einsum("bd,bld->bl", video_query, video_feat)  # (N, L)
             sub_similarity = torch.einsum("bd,bld->bl", sub_query, sub_feat)  # (N, L)
             similarity = (video_similarity + sub_similarity) / 2
+            if not stack_conv:
+                st_prob = self.merged_st_predictor(similarity.unsqueeze(1)).squeeze()  # (N, L)
+                ed_prob = self.merged_ed_predictor(similarity.unsqueeze(1)).squeeze()  # (N, L)
+            else:
+                st_prob_list = []
+                ed_prob_list = []
+                for idx in range(num_convs):
+                    st_prob_list.append(self.merged_st_predictors[idx](similarity.unsqueeze(1)).squeeze().unsqueeze(2))
+                    ed_prob_list.append(self.merged_ed_predictors[idx](similarity.unsqueeze(1)).squeeze().unsqueeze(2))
+                st_prob = self.combine_st_conv(torch.cat(st_prob_list, dim=2)).squeeze()  # (N, L, 3) --> (N, L)
+                ed_prob = self.combine_ed_conv(torch.cat(ed_prob_list, dim=2)).squeeze()  # (N, L, 3) --> (N, L)
+        st_prob = mask_logits(st_prob, context_mask)  # (N, L)
+        ed_prob = mask_logits(ed_prob, context_mask)
+        if return_similaity:
+            assert not cross
+            return st_prob, ed_prob, similarity, video_similarity, sub_similarity
+        else:
+            return st_prob, ed_prob
+
+    def get_merged_st_ed_prob_vsm(self, video_feat, sub_query, context_mask, cross=False, return_similaity=False):
+        """context_mask could be either video_mask or sub_mask, since they are the same"""
+        assert self.use_video and self.use_sub and self.config.span_predictor_type == "conv"
+        video_query = self.video_query_linear(sub_query)
+        stack_conv = self.config.stack_conv_predictor_conv_kernel_sizes != -1
+        num_convs = len(self.config.stack_conv_predictor_conv_kernel_sizes) if stack_conv else None
+        if cross:
+            similarity = torch.einsum("md,nld->mnl", video_query, video_feat)
+            # sub_similarity = torch.einsum("md,nld->mnl", sub_query, sub_feat)
+            # similarity = (video_similarity + sub_similarity) / 2  # (Nq, Nv, L)  from query to all videos.
+            n_q, n_c, l = similarity.shape
+            similarity = similarity.view(n_q * n_c, 1, l)
+            if not stack_conv:
+                st_prob = self.merged_st_predictor(similarity).view(n_q, n_c, l)  # (Nq, Nv, L)
+                ed_prob = self.merged_ed_predictor(similarity).view(n_q, n_c, l)  # (Nq, Nv, L)
+            else:
+                st_prob_list = []
+                ed_prob_list = []
+                for idx in range(num_convs):
+                    st_prob_list.append(self.merged_st_predictors[idx](similarity).squeeze().unsqueeze(2))
+                    ed_prob_list.append(self.merged_ed_predictors[idx](similarity).squeeze().unsqueeze(2))
+                # (Nq*Nv, L, 3) --> (Nq*Nv, L) -> (Nq, Nv, L)
+                st_prob = self.combine_st_conv(torch.cat(st_prob_list, dim=2)).view(n_q, n_c, l)
+                ed_prob = self.combine_ed_conv(torch.cat(ed_prob_list, dim=2)).view(n_q, n_c, l)
+        else:
+            # print('vsm] vid, sub {} {}'.format(video_feat.shape, video_query.shape))
+            similarity = torch.einsum("bd,bld->bl", video_query, video_feat)  # (N, L)
             if not stack_conv:
                 st_prob = self.merged_st_predictor(similarity.unsqueeze(1)).squeeze()  # (N, L)
                 ed_prob = self.merged_ed_predictor(similarity.unsqueeze(1)).squeeze()  # (N, L)
@@ -584,6 +663,36 @@ class XML(nn.Module):
             st_prob = (video_st_prob + sub_st_prob) / divisor  # (N, Lv)
             ed_prob = (video_ed_prob + sub_ed_prob) / divisor  # (N, Lv)
         return q2ctx_scores, st_prob, ed_prob  # un-normalized masked probabilities!!!!!
+
+    def get_pred_from_subtitle(self, video_feat1, video_mask, sub_feat1, cross=False):
+        """
+        Args:
+            video_feat1: (N, Lv, D) or None
+            video_feat2:
+            video_mask: (N, Lv)
+            sub_feat1: (N, Lv, D) or None
+            sub_feat2:
+            sub_mask: (N, Lv)
+            cross:
+        """
+        # video_query, sub_query = self.encode_query(query_feat, query_mask)
+        # divisor = self.use_sub + self.use_video
+
+        # get video-level retrieval scores
+        # video_q2ctx_scores = self.get_video_level_scores(video_query, video_feat1, video_mask) if self.use_video else 0
+        # sub_q2ctx_scores = self.get_video_level_scores(sub_query, sub_feat1, sub_mask) if self.use_sub else 0
+        # q2ctx_scores = (video_q2ctx_scores + sub_q2ctx_scores) / divisor  # (N, N)
+        st_prob, ed_prob = None, None
+        if self.config.merge_two_stream and self.use_video and self.use_sub:
+            st_prob, ed_prob = self.get_merged_st_ed_prob_vsm(video_feat1, sub_feat1, video_mask, cross=cross)
+        # else:
+        #     video_st_prob, video_ed_prob = self.get_st_ed_prob(
+        #         video_query, video_feat2, video_mask, module_name="video", cross=cross) if self.use_video else (0, 0)
+        #     sub_st_prob, sub_ed_prob = self.get_st_ed_prob(
+        #         sub_query, sub_feat2, sub_mask, module_name="sub", cross=cross) if self.use_sub else (0, 0)
+        #     st_prob = (video_st_prob + sub_st_prob) / divisor  # (N, Lv)
+        #     ed_prob = (video_ed_prob + sub_ed_prob) / divisor  # (N, Lv)
+        return st_prob, ed_prob  # un-normalized masked probabilities!!!!!
 
     def get_video_level_loss(self, query_context_scores):
         """ ranking loss between (pos. query + pos. video) and (pos. query + neg. video) or (neg. query + pos. video)

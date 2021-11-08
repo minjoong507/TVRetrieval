@@ -138,7 +138,8 @@ def train(model, train_dataset, train_eval_dataset, val_dataset, opt):
                               batch_size=opt.bsz,
                               num_workers=opt.num_workers,
                               shuffle=True,
-                              pin_memory=opt.pin_memory)
+                              pin_memory=opt.pin_memory,
+                              drop_last=True)
 
     train_eval_loader = DataLoader(train_eval_dataset,
                                    collate_fn=start_end_collate,
