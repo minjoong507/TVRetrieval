@@ -249,15 +249,16 @@ class XML(nn.Module):
         if self.config.lw_neg_ctx != 0 or self.config.lw_neg_q != 0:
             loss_neg_ctx, loss_neg_q = self.get_video_level_loss(query_context_scores)
 
-        vsm_st_loss, vsm_ed_loss = 0, 0
+        loss_vsm = 0
         if self.vsm_loss != 0 and self.num_sub_sampling != 0 and self.max_sampled_sub_l != 0:
             vsm_st_loss = self.temporal_criterion(sub_st_prob_list, target_st)
             vsm_ed_loss = self.temporal_criterion(sub_ed_prob_list, target_ed)
+            vsm_loss = vsm_st_loss + vsm_ed_loss
 
         loss_st_ed = self.config.lw_st_ed * loss_st_ed
         loss_neg_ctx = self.config.lw_neg_ctx * loss_neg_ctx
         loss_neg_q = self.config.lw_neg_q * loss_neg_q
-        loss_vsm = self.config.lw_vsm * vsm_st_loss + vsm_ed_loss
+        loss_vsm = self.config.lw_vsm * loss_vsm
         loss = loss_st_ed + loss_neg_ctx + loss_neg_q + loss_vsm
 
         return loss, {"loss_st_ed": float(loss_st_ed),
