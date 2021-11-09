@@ -649,7 +649,7 @@ class XML(nn.Module):
         return q2ctx_scores, st_prob, ed_prob  # un-normalized masked probabilities!!!!!
 
     def get_pred_from_subtitle(self, video_feat1, video_mask, sub_feat1, cross=False):
-        if self.vsm_loss != 0 or self.num_sub_sampling != 0 or self.max_sampled_sub_l != 0:
+        if self.vsm_loss == 0 or self.num_sub_sampling == 0 or self.max_sampled_sub_l == 0:
             return None, None, None, None
 
         mask_length_list = [torch.sum(mask) for mask in video_mask]
