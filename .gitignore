@@ -8,6 +8,7 @@ cache/*
 */cache*/
 tmp*.py
 *pickle
+tvr_feature_release/
 
 # compiled files #
 *.pyc
