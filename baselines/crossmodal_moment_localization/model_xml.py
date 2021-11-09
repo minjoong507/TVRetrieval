@@ -250,7 +250,7 @@ class XML(nn.Module):
             loss_neg_ctx, loss_neg_q = self.get_video_level_loss(query_context_scores)
 
         vsm_st_loss, vsm_ed_loss = 0, 0
-        if self.vsm_loss != 0 or self.num_sub_sampling != 0 or self.max_sampled_sub_l != 0:
+        if self.vsm_loss != 0 and self.num_sub_sampling != 0 and self.max_sampled_sub_l != 0:
             vsm_st_loss = self.temporal_criterion(sub_st_prob_list, target_st)
             vsm_ed_loss = self.temporal_criterion(sub_ed_prob_list, target_ed)
 
