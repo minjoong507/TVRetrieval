@@ -180,6 +180,11 @@ class XML(nn.Module):
                 self.combine_st_conv = nn.Linear(num_convs, 1, bias=False)
                 self.combine_ed_conv = nn.Linear(num_convs, 1, bias=False)
 
+        if config.vsm_loss != 0:
+            self.vsm_loss = config.vsm_loss
+            self.num_sub_sampling = config.num_sub_sampling
+            self.max_sampled_sub_l = config.max_sampled_sub_l
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -231,55 +236,35 @@ class XML(nn.Module):
                                          video_feat1, video_feat2, video_mask,
                                          sub_feat1, sub_feat2, sub_mask, cross=False)
 
-        print('sub mask {} {}'.format(sub_mask, sub_mask[0]))
-
-        num_sampling = 1
-        sub_sampling = torch.randint(0, video_feat1.size(1) - 1, (num_sampling,))
-        sub_sampling, _ = torch.sort(sub_sampling)
-
-        sub_st_prob_list, sub_ed_prob_list = torch.zeros((num_sampling, sub_feat.size(0), sub_feat.size(1))), torch.zeros((num_sampling, sub_feat.size(0), sub_feat.size(1)))
-
-        for i in range(len(sub_sampling)):
-            sub_st_prob, sub_ed_prob = self.get_pred_from_subtitle(video_feat1, video_mask, sub_feat1[:,sub_sampling[i],:])
-            sub_st_prob_list[i] = sub_st_prob
-            sub_ed_prob_list[i] = sub_ed_prob
-
-        sub_st_prob_list = sub_st_prob_list.view(-1, sub_st_prob_list.size(2))
-        sub_ed_prob_list = sub_ed_prob_list.view(-1, sub_ed_prob_list.size(2))
-
-        target_st, target_ed = sub_sampling, sub_sampling + 1
-        print('sampling : {}, {}'.format(target_st, target_ed))
-        target_st, target_ed = target_st.repeat(sub_feat.size(0)), target_ed.repeat(sub_feat.size(0))
-
-
-        # print('pred st, ed : {} , target st, ed  {}'.format(sub_st_prob_list.shape, target_st.shape))
-        #
-        vsm_st_loss = self.temporal_criterion(sub_st_prob_list, target_st)
-        vsm_ed_loss = self.temporal_criterion(sub_ed_prob_list, target_ed)
-        print('vsm loss : {}, {}'.format(vsm_st_loss, vsm_ed_loss))
-
-        #
-        # print('pred st, ed : {} , target st, ed  {}'.format(st_prob.shape, st_ed_indices[:, 0].shape))
+        sub_st_prob_list, sub_ed_prob_list, target_st, target_ed = \
+            self.get_pred_from_subtitle(video_feat1, video_mask, sub_feat1)
 
         loss_st_ed = 0
         if self.config.lw_st_ed != 0:
-            print("label {}, {}, {}, {}".format(st_prob[0], st_ed_indices[0,0], ed_prob[0], st_ed_indices[0,1]))
+            # print("label {}, {}, {}, {}".format(st_prob[0], st_ed_indices[0,0], ed_prob[0], st_ed_indices[0,1]))
             loss_st = self.temporal_criterion(st_prob, st_ed_indices[:, 0])
             loss_ed = self.temporal_criterion(ed_prob, st_ed_indices[:, 1])
             loss_st_ed = loss_st + loss_ed
-        print('sted {}'.format(loss_st_ed))
 
         loss_neg_ctx, loss_neg_q = 0, 0
         if self.config.lw_neg_ctx != 0 or self.config.lw_neg_q != 0:
             loss_neg_ctx, loss_neg_q = self.get_video_level_loss(query_context_scores)
 
+        vsm_st_loss, vsm_ed_loss = 0, 0
+        if self.vsm_loss != 0 and self.num_sub_sampling != 0 and self.max_sampled_sub_l != 0:
+            vsm_st_loss = self.temporal_criterion(sub_st_prob_list, target_st)
+            vsm_ed_loss = self.temporal_criterion(sub_ed_prob_list, target_ed)
+
         loss_st_ed = self.config.lw_st_ed * loss_st_ed
         loss_neg_ctx = self.config.lw_neg_ctx * loss_neg_ctx
         loss_neg_q = self.config.lw_neg_q * loss_neg_q
-        loss = loss_st_ed + loss_neg_ctx + loss_neg_q
+        loss_vsm = self.config.lw_vsm * vsm_st_loss + vsm_ed_loss
+        loss = loss_st_ed + loss_neg_ctx + loss_neg_q + loss_vsm
+
         return loss, {"loss_st_ed": float(loss_st_ed),
                       "loss_neg_ctx": float(loss_neg_ctx),
                       "loss_neg_q": float(loss_neg_q),
+                      "loss_vsm": float(loss_vsm),
                       "loss_overall": float(loss)}
 
     def get_visualization_data(self, query_feat, query_mask, video_feat, video_mask, sub_feat, sub_mask,
@@ -312,7 +297,7 @@ class XML(nn.Module):
                 # print(k, v, v.shape, type(v))
                 data[k] = [e[:l] for l, e in zip(query_lengths, v)]  # list(e) where e is  (Lq_i, 2)
             else:
-                data[k] = [e[:l] for l, e in zip(ctx_lengths, v)]   # list(e) where e is (Lc_i)
+                data[k] = [e[:l] for l, e in zip(ctx_lengths, v)]  # list(e) where e is (Lc_i)
 
         # aggregate info for each example
         datalist = []
@@ -665,6 +650,25 @@ class XML(nn.Module):
         return q2ctx_scores, st_prob, ed_prob  # un-normalized masked probabilities!!!!!
 
     def get_pred_from_subtitle(self, video_feat1, video_mask, sub_feat1, cross=False):
+        mask_length_list = [torch.sum(mask) for mask in video_mask]
+        target_st, target_ed = torch.zeros(len(mask_length_list), dtype=torch.long), torch.zeros(len(mask_length_list), dtype=torch.long)
+
+        for i in range(len(target_st)):
+            target_st[i] = torch.randint(0, int(mask_length_list[i]) - self.max_sampled_sub_l, (self.num_sub_sampling,))
+            target_ed[i] = target_st[i] + 1
+
+        sub_query = torch.zeros(sub_feat1.size(0), sub_feat1.size(2)).cuda()
+        for i in range(len(sub_query)):
+            sub_query[i] = sub_feat1[i, int(target_st[i]), :]
+
+        sub_st_prob, sub_ed_prob = self._get_pred_from_subtitle(video_feat1, video_mask, sub_query, cross=cross)
+
+        target_st, target_ed = target_st.cuda(), target_ed.cuda()
+
+        # print("sub, st : {} {}".format(sub_query.shape, target_st.shape))
+        return sub_st_prob, sub_ed_prob, target_st, target_ed
+
+    def _get_pred_from_subtitle(self, video_feat1, video_mask, sub_feat1, cross=False):
         """
         Args:
             video_feat1: (N, Lv, D) or None

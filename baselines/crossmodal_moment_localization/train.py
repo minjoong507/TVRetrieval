@@ -55,6 +55,7 @@ def train_epoch(model, train_loader, optimizer, opt, epoch_i, training=True):
     loss_meters = OrderedDict(loss_st_ed=AverageMeter(),
                               loss_neg_ctx=AverageMeter(),
                               loss_neg_q=AverageMeter(),
+                              loss_vsm=AverageMeter(),
                               loss_overall=AverageMeter())
 
     num_training_examples = len(train_loader)
@@ -343,11 +344,15 @@ def start_training():
         ranking_loss_type=opt.ranking_loss_type,  # loss type, 'hinge' or 'lse'
         lw_neg_q=opt.lw_neg_q,  # loss weight for neg. query and pos. context
         lw_neg_ctx=opt.lw_neg_ctx,  # loss weight for pos. query and neg. context
+        lw_vsm=opt.lw_vsm, # loss weight for vsm
         lw_st_ed=0,  # will be assigned dynamically at training time
         use_hard_negative=False,  # reset at each epoch
         hard_pool_size=opt.hard_pool_size,
         use_self_attention=not opt.no_self_att,  # whether to use self attention
-        no_modular=opt.no_modular
+        no_modular=opt.no_modular,
+        vsm_loss=opt.vsm_loss,
+        num_sub_sampling=opt.num_sub_sampling,
+        max_sampled_sub_l=opt.max_sampled_sub_l
     )
     logger.info("model_config {}".format(model_config))
     model = XML(model_config)

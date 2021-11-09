@@ -49,7 +49,7 @@ class BaseOptions(object):
                                  help="Proportion of training to perform linear learning rate warmup for. "
                                       "E.g., 0.1 = 10% of training.")
         self.parser.add_argument("--wd", type=float, default=0.01, help="weight decay")
-        self.parser.add_argument("--n_epoch", type=int, default=1, help="number of epochs to run")
+        self.parser.add_argument("--n_epoch", type=int, default=100, help="number of epochs to run")
         self.parser.add_argument("--max_es_cnt", type=int, default=10,
                                  help="number of epochs to early stop, use -1 to disable early stop")
         self.parser.add_argument("--stop_task", type=str, default="VCMR", choices=["VCMR", "SVMR", "VR"],
@@ -70,6 +70,7 @@ class BaseOptions(object):
         self.parser.add_argument("--lw_neg_ctx", type=float, default=1,
                                  help="weight for ranking loss with positive query and negative context")
         self.parser.add_argument("--lw_st_ed", type=float, default=0.01, help="weight for st ed prediction loss")
+        self.parser.add_argument("--lw_vsm", type=float, default=0.01, help="weight for subtitle st ed prediction loss")
         self.parser.add_argument("--train_span_start_epoch", type=int, default=0,
                                  help="which epoch to start training span prediction, -1 to disable")
         self.parser.add_argument("--ranking_loss_type", type=str, default="hinge", choices=["hinge", "lse"],
@@ -79,6 +80,9 @@ class BaseOptions(object):
                                       "use -1 to disable")
         self.parser.add_argument("--hard_pool_size", type=int, default=20,
                                  help="hard negatives are still sampled, but from a harder pool.")
+        self.parser.add_argument("--vsm_loss", type=int, default="1",
+                                 help="vsm loss, use 0 to disable")
+
 
         # Model and Data config
         self.parser.add_argument("--max_sub_l", type=int, default=50,
@@ -149,6 +153,10 @@ class BaseOptions(object):
         self.parser.add_argument("--conv_stride", type=int, default=1)
         self.parser.add_argument("--initializer_range", type=float, default=0.02,
                                  help="initializer range for linear layer")
+        self.parser.add_argument("--num_sub_sampling", type=int, default="1",
+                                 help="Number of sampled subtitle for vsm loss, use 0 to disable")
+        self.parser.add_argument("--max_sampled_sub_l", type=int, default="1",
+                                 help="vsm loss, use 0 to disable")
 
         # post processing
         self.parser.add_argument("--min_pred_l", type=int, default=2,
