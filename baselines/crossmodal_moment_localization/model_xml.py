@@ -180,10 +180,9 @@ class XML(nn.Module):
                 self.combine_st_conv = nn.Linear(num_convs, 1, bias=False)
                 self.combine_ed_conv = nn.Linear(num_convs, 1, bias=False)
 
-        if config.vsm_loss != 0:
-            self.vsm_loss = config.vsm_loss
-            self.num_sub_sampling = config.num_sub_sampling
-            self.max_sampled_sub_l = config.max_sampled_sub_l
+        self.vsm_loss = config.vsm_loss
+        self.num_sub_sampling = config.num_sub_sampling
+        self.max_sampled_sub_l = config.max_sampled_sub_l
 
         self.reset_parameters()
 
@@ -251,7 +250,7 @@ class XML(nn.Module):
             loss_neg_ctx, loss_neg_q = self.get_video_level_loss(query_context_scores)
 
         vsm_st_loss, vsm_ed_loss = 0, 0
-        if self.vsm_loss != 0 and self.num_sub_sampling != 0 and self.max_sampled_sub_l != 0:
+        if self.vsm_loss != 0 or self.num_sub_sampling != 0 or self.max_sampled_sub_l != 0:
             vsm_st_loss = self.temporal_criterion(sub_st_prob_list, target_st)
             vsm_ed_loss = self.temporal_criterion(sub_ed_prob_list, target_ed)
 
@@ -650,6 +649,9 @@ class XML(nn.Module):
         return q2ctx_scores, st_prob, ed_prob  # un-normalized masked probabilities!!!!!
 
     def get_pred_from_subtitle(self, video_feat1, video_mask, sub_feat1, cross=False):
+        if self.vsm_loss != 0 or self.num_sub_sampling != 0 or self.max_sampled_sub_l != 0:
+            return None, None, None, None
+
         mask_length_list = [torch.sum(mask) for mask in video_mask]
         target_st, target_ed = torch.zeros(len(mask_length_list), dtype=torch.long), torch.zeros(len(mask_length_list), dtype=torch.long)
 
