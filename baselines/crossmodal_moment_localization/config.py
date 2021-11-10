@@ -83,7 +83,6 @@ class BaseOptions(object):
         self.parser.add_argument("--vsm_loss", type=int, default="1",
                                  help="vsm loss, use 0 to disable")
 
-
         # Model and Data config
         self.parser.add_argument("--max_sub_l", type=int, default=50,
                                  help="max length of all sub sentence 97.71 under 50 for 3 sentences")
@@ -121,7 +120,8 @@ class BaseOptions(object):
                                  help="each video will be uniformly segmented into small clips, "
                                       "will automatically loaded from ProposalConfigs if None")
         self.parser.add_argument("--vid_feat_size", type=int, help="feature dim for video feature")
-
+        self.parser.add_argument("--sampling_subtitle_length_type", type=str, default="rand", choices=["fixed", "rand"],
+                                 help="how to sample the subtitle length. Should be fixed or random.")
         self.parser.add_argument("--span_predictor_type", type=str, default="conv", choices=["conv", "cat_linear"],
                                  help="how to generate span predictions, "
                                       "conv: apply 1D-Conv layer on top of NxL dot product of query and clips"

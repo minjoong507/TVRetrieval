@@ -352,7 +352,8 @@ def start_training():
         no_modular=opt.no_modular,
         vsm_loss=opt.vsm_loss,
         num_sub_sampling=opt.num_sub_sampling,
-        max_sampled_sub_l=opt.max_sampled_sub_l
+        max_sampled_sub_l=opt.max_sampled_sub_l,
+        sampling_subtitle_length_type=opt.sampling_subtitle_length_type
     )
     logger.info("model_config {}".format(model_config))
     model = XML(model_config)

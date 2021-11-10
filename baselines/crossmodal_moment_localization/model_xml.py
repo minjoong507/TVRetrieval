@@ -194,6 +194,8 @@ class XML(nn.Module):
         self.num_sub_sampling = config.num_sub_sampling
         self.max_sampled_sub_l = config.max_sampled_sub_l
 
+        self.GA_loss = 1
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -663,25 +665,33 @@ class XML(nn.Module):
         if self.vsm_loss == 0 or self.num_sub_sampling == 0 or self.max_sampled_sub_l == 0:
             return None, None, None, None
 
+        mask_length_list = [int(torch.sum(mask)) for mask in video_mask]
+
+        if self.config.sampling_subtitle_length_type == 'fixed':
+            sampling_length = [self.max_sampled_sub_l for _ in range(len(mask_length_list))]
+        else:
+            sampling_length = [int(torch.argmax(torch.rand(1, min(14, mask_length - 1)))) + 1 for mask_length in mask_length_list]
+
         video_feat1 = video_proj_layer(video_feat1)
         sub_feat1 = sub_proj_layer(sub_feat1)
 
-        mask_length_list = [torch.sum(mask) for mask in video_mask]
         target_st, target_ed = torch.zeros(len(mask_length_list), dtype=torch.long), torch.zeros(len(mask_length_list), dtype=torch.long)
 
         for i in range(len(target_st)):
-            target_st[i] = torch.randint(0, int(mask_length_list[i]) - self.max_sampled_sub_l, (self.num_sub_sampling,))
-            target_ed[i] = target_st[i] + 1
+            length = mask_length_list[i] - sampling_length[i]
+            target_st[i] = torch.randint(0, length, (self.num_sub_sampling,))
+            target_ed[i] = target_st[i] + sampling_length[i]
 
         sub_query = torch.zeros(sub_feat1.size(0), sub_feat1.size(2)).cuda()
         for i in range(len(sub_query)):
-            sub_query[i] = sub_feat1[i, int(target_st[i]), :]
+            st_idx = int(target_st[i])
+            sub_query_feat = sub_feat1[i, st_idx:st_idx + sampling_length[i], :]
+            sub_query[i], _ = torch.max(sub_query_feat, dim=0)
 
         sub_st_prob, sub_ed_prob = self._get_pred_from_subtitle(video_feat1, video_mask, sub_query, cross=cross)
 
         target_st, target_ed = target_st.cuda(), target_ed.cuda()
 
-        # print("sub, st : {} {}".format(sub_query.shape, target_st.shape))
         return sub_st_prob, sub_ed_prob, target_st, target_ed
 
     def _get_pred_from_subtitle(self, video_feat1, video_mask, sub_feat1, cross=False):
