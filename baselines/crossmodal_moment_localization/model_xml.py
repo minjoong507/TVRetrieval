@@ -114,6 +114,11 @@ class XML(nn.Module):
                                                 relu=True)
             self.video_encoder1 = copy.deepcopy(self.query_encoder)
             self.video_encoder2 = copy.deepcopy(self.query_encoder)
+            self.video_proj_layer = LinearLayer(config.hidden_size,
+                                                config.hidden_size,
+                                                layer_norm=True,
+                                                dropout=config.input_drop,
+                                                relu=True)
             if self.config.cross_att:
                 self.video_cross_att = BertSelfAttention(cross_att_cfg)
                 self.video_cross_layernorm = nn.LayerNorm(config.hidden_size)
@@ -138,6 +143,11 @@ class XML(nn.Module):
                                               relu=True)
             self.sub_encoder1 = copy.deepcopy(self.query_encoder)
             self.sub_encoder2 = copy.deepcopy(self.query_encoder)
+            self.sub_proj_layer = LinearLayer(config.hidden_size,
+                                              config.hidden_size,
+                                              layer_norm=True,
+                                              dropout=config.input_drop,
+                                              relu=True)
             if self.config.cross_att:
                 self.sub_cross_att = BertSelfAttention(cross_att_cfg)
                 self.sub_cross_layernorm = nn.LayerNorm(config.hidden_size)
@@ -236,7 +246,7 @@ class XML(nn.Module):
                                          sub_feat1, sub_feat2, sub_mask, cross=False)
 
         sub_st_prob_list, sub_ed_prob_list, target_st, target_ed = \
-            self.get_pred_from_subtitle(video_feat1, video_mask, sub_feat1)
+            self.get_pred_from_subtitle(video_feat1, video_mask, sub_feat1, self.video_proj_layer, self.sub_proj_layer)
 
         loss_st_ed = 0
         if self.config.lw_st_ed != 0:
@@ -253,7 +263,7 @@ class XML(nn.Module):
         if self.vsm_loss != 0 and self.num_sub_sampling != 0 and self.max_sampled_sub_l != 0:
             vsm_st_loss = self.temporal_criterion(sub_st_prob_list, target_st)
             vsm_ed_loss = self.temporal_criterion(sub_ed_prob_list, target_ed)
-            vsm_loss = vsm_st_loss + vsm_ed_loss
+            loss_vsm = vsm_st_loss + vsm_ed_loss
 
         loss_st_ed = self.config.lw_st_ed * loss_st_ed
         loss_neg_ctx = self.config.lw_neg_ctx * loss_neg_ctx
@@ -649,9 +659,12 @@ class XML(nn.Module):
             ed_prob = (video_ed_prob + sub_ed_prob) / divisor  # (N, Lv)
         return q2ctx_scores, st_prob, ed_prob  # un-normalized masked probabilities!!!!!
 
-    def get_pred_from_subtitle(self, video_feat1, video_mask, sub_feat1, cross=False):
+    def get_pred_from_subtitle(self, video_feat1, video_mask, sub_feat1, video_proj_layer, sub_proj_layer, cross=False):
         if self.vsm_loss == 0 or self.num_sub_sampling == 0 or self.max_sampled_sub_l == 0:
             return None, None, None, None
+
+        video_feat1 = video_proj_layer(video_feat1)
+        sub_feat1 = sub_proj_layer(sub_feat1)
 
         mask_length_list = [torch.sum(mask) for mask in video_mask]
         target_st, target_ed = torch.zeros(len(mask_length_list), dtype=torch.long), torch.zeros(len(mask_length_list), dtype=torch.long)

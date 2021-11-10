@@ -57,7 +57,7 @@ class BaseOptions(object):
         self.parser.add_argument("--eval_tasks_at_training", type=str, nargs="+",
                                  default=["VCMR", "SVMR", "VR"], choices=["VCMR", "SVMR", "VR"],
                                  help="evaluate and report  numbers for tasks specified here.")
-        self.parser.add_argument("--bsz", type=int, default=128, help="mini-batch size")
+        self.parser.add_argument("--bsz", type=int, default=256, help="mini-batch size")
         self.parser.add_argument("--eval_query_bsz", type=int, default=50,
                                  help="mini-batch size at inference, for query")
         self.parser.add_argument("--eval_context_bsz", type=int, default=200,
