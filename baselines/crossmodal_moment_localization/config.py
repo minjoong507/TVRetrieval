@@ -80,7 +80,7 @@ class BaseOptions(object):
                                       "use -1 to disable")
         self.parser.add_argument("--hard_pool_size", type=int, default=20,
                                  help="hard negatives are still sampled, but from a harder pool.")
-        self.parser.add_argument("--vsm_loss", type=int, default="1",
+        self.parser.add_argument("--vsm_loss", type=int, default="0",
                                  help="vsm loss, use 0 to disable")
 
         # Model and Data config
@@ -120,7 +120,7 @@ class BaseOptions(object):
                                  help="each video will be uniformly segmented into small clips, "
                                       "will automatically loaded from ProposalConfigs if None")
         self.parser.add_argument("--vid_feat_size", type=int, help="feature dim for video feature")
-        self.parser.add_argument("--sampling_subtitle_length_type", type=str, default="rand", choices=["fixed", "rand"],
+        self.parser.add_argument("--sampling_subtitle_length_type", type=str, default="fixed", choices=["fixed", "rand"],
                                  help="how to sample the subtitle length. Should be fixed or random.")
         self.parser.add_argument("--span_predictor_type", type=str, default="conv", choices=["conv", "cat_linear"],
                                  help="how to generate span predictions, "

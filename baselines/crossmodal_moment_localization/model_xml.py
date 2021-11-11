@@ -374,7 +374,7 @@ class XML(nn.Module):
         encoded_video_feat = self.encode_input(video_feat, video_mask,
                                                self.video_input_proj, self.video_encoder1, self.ctx_pos_embed)
         encoded_sub_feat = self.encode_input(sub_feat, sub_mask,
-                                             self.sub_input_proj, self.sub_encoder1, self.ctx_pos_embed)
+                                             self.sub_input_proj, self.sub_encoder1, self.ctx_pos_embed, use_pos_embed=False)
         x_encoded_video_feat = self.cross_context_encoder(
             encoded_video_feat, video_mask, encoded_sub_feat, sub_mask,
             self.video_cross_att, self.video_cross_layernorm, self.video_encoder2)  # (N, L, D)
@@ -403,7 +403,7 @@ class XML(nn.Module):
         elif self.config.encoder_type in ["gru", "lstm"]:
             return self_att_layer(residual_out, main_context_mask.sum(1).long())[0]
 
-    def encode_input(self, feat, mask, input_proj_layer, encoder_layer, pos_embed_layer):
+    def encode_input(self, feat, mask, input_proj_layer, encoder_layer, pos_embed_layer, use_pos_embed=True):
         """
         Args:
             feat: (N, L, D_input), torch.float32
@@ -414,16 +414,26 @@ class XML(nn.Module):
             pos_embed_layer
         """
         feat = input_proj_layer(feat)
-
-        if self.config.encoder_type in ["cnn", "transformer"]:
-            feat = pos_embed_layer(feat)
-            mask = mask.unsqueeze(1)  # (N, 1, L), torch.FloatTensor
-            return encoder_layer(feat, mask)  # (N, L, D_hidden)
-        elif self.config.encoder_type in ["gru", "lstm"]:
-            if self.config.add_pe_rnn:
+        if use_pos_embed:
+            if self.config.encoder_type in ["cnn", "transformer"]:
                 feat = pos_embed_layer(feat)
-            mask = mask.sum(1).long()  # (N, ), torch.LongTensor
-            return encoder_layer(feat, mask)[0]  # (N, L, D_hidden)
+                mask = mask.unsqueeze(1)  # (N, 1, L), torch.FloatTensor
+                return encoder_layer(feat, mask)  # (N, L, D_hidden)
+            elif self.config.encoder_type in ["gru", "lstm"]:
+                if self.config.add_pe_rnn:
+                    feat = pos_embed_layer(feat)
+                mask = mask.sum(1).long()  # (N, ), torch.LongTensor
+                return encoder_layer(feat, mask)[0]  # (N, L, D_hidden)
+        else:
+            if self.config.encoder_type in ["cnn", "transformer"]:
+                # feat = pos_embed_layer(feat)
+                mask = mask.unsqueeze(1)  # (N, 1, L), torch.FloatTensor
+                return encoder_layer(feat, mask)  # (N, L, D_hidden)
+            elif self.config.encoder_type in ["gru", "lstm"]:
+                # if self.config.add_pe_rnn:
+                #     feat = pos_embed_layer(feat)
+                mask = mask.sum(1).long()  # (N, ), torch.LongTensor
+                return encoder_layer(feat, mask)[0]  # (N, L, D_hidden)
 
     def get_modularized_queries(self, encoded_query, query_mask, return_modular_att=False):
         """
