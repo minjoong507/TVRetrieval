@@ -696,7 +696,8 @@ class XML(nn.Module):
         for i in range(len(sub_query)):
             st_idx = int(target_st[i])
             sub_query_feat = sub_feat1[i, st_idx:st_idx + sampling_length[i], :]
-            sub_query[i], _ = torch.max(sub_query_feat, dim=0)
+            # sub_query[i], _ = torch.max(sub_query_feat, dim=0) # maxpooling
+            sub_query[i], _ = torch.mean(sub_query_feat, dim=0, keepdim=True) #meanpooling
 
         sub_st_prob, sub_ed_prob = self._get_pred_from_subtitle(video_feat1, video_mask, sub_query, cross=cross)
 

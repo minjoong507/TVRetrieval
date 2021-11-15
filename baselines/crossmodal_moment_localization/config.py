@@ -35,7 +35,7 @@ class BaseOptions(object):
         self.parser.add_argument("--seed", type=int, default=2018, help="random seed")
         self.parser.add_argument("--device", type=int, default=0, help="0 cuda, -1 cpu")
         self.parser.add_argument("--device_ids", type=int, nargs="+", default=[0], help="GPU ids to run the job")
-        self.parser.add_argument("--num_workers", type=int, default=8,
+        self.parser.add_argument("--num_workers", type=int, default=2,
                                  help="num subprocesses used to load the data, 0: use main process")
         self.parser.add_argument("--no_core_driver", action="store_true",
                                  help="hdf5 driver, default use `core` (load into RAM), if specified, use `None`")
@@ -57,7 +57,7 @@ class BaseOptions(object):
         self.parser.add_argument("--eval_tasks_at_training", type=str, nargs="+",
                                  default=["VCMR", "SVMR", "VR"], choices=["VCMR", "SVMR", "VR"],
                                  help="evaluate and report  numbers for tasks specified here.")
-        self.parser.add_argument("--bsz", type=int, default=256, help="mini-batch size")
+        self.parser.add_argument("--bsz", type=int, default=128, help="mini-batch size")
         self.parser.add_argument("--eval_query_bsz", type=int, default=50,
                                  help="mini-batch size at inference, for query")
         self.parser.add_argument("--eval_context_bsz", type=int, default=200,
@@ -80,7 +80,7 @@ class BaseOptions(object):
                                       "use -1 to disable")
         self.parser.add_argument("--hard_pool_size", type=int, default=20,
                                  help="hard negatives are still sampled, but from a harder pool.")
-        self.parser.add_argument("--vsm_loss", type=int, default="0",
+        self.parser.add_argument("--vsm_loss", type=int, default="1",
                                  help="vsm loss, use 0 to disable")
 
         # Model and Data config
