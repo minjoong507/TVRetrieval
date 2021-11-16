@@ -775,7 +775,11 @@ def main():
         torch.distributed.barrier()
 
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    config = config_class.from_pretrained(args.config_name if args.config_name else args.model_name_or_path)
+    proxies = {
+        "http": "http://10.10.1.10:3128",
+        "https": "https://10.10.1.10:1080",
+    }
+    config = config_class.from_pretrained(args.config_name if args.config_name else args.model_name_or_path, proxies=proxies)
     if args.do_extract:
         config.output_hidden_states = True  # output hidden states from all layers
     tokenizer = tokenizer_class.from_pretrained(
