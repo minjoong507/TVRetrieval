@@ -11,9 +11,9 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 
-from baselines.crossmodal_moment_localization.config import TestOptions
-from baselines.crossmodal_moment_localization.model_xml import XML
-from baselines.crossmodal_moment_localization.start_end_dataset import \
+from baselines.weakly_supervised_crossmodal_moment_localization.config import TestOptions
+from baselines.weakly_supervised_crossmodal_moment_localization.model_xml import XML
+from baselines.weakly_supervised_crossmodal_moment_localization.start_end_dataset import \
     start_end_collate, StartEndEvalDataset, prepare_batch_inputs
 from baselines.clip_alignment_with_language.inference import \
     get_submission_top_n, post_processing_vcmr_nms, post_processing_svmr_nms

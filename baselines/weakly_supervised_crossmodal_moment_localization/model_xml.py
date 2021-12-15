@@ -225,7 +225,7 @@ class XML(nn.Module):
         """pre-train video retrieval then span prediction"""
         self.config.lw_st_ed = lw_st_ed
 
-    def forward(self, query_feat, query_mask, video_feat, video_mask, sub_feat, sub_mask,
+    def forward(self, query_feat, query_mask, video_feat, video_mask, sub_feat, sub_mask, tef_feat,
                 tef_mask, st_ed_indices):
         """
         Args:
