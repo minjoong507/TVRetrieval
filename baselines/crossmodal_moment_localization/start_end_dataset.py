@@ -123,7 +123,7 @@ class StartEndDataset(Dataset):
             ctx_l = len(sub_feat)
         else:
             model_inputs["sub_feat"] = torch.zeros((2, 2))
-
+        print(self.use_tef)
         if self.use_tef:
             # note the tef features here are normalized clip indices (1.5 secs), instead of the original time (1 sec)
             ctx_l = meta["duration"] // self.clip_length + 1 if ctx_l == 0 else ctx_l

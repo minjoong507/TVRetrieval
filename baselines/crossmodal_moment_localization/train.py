@@ -70,10 +70,10 @@ def train_epoch(model, train_loader, optimizer, opt, epoch_i, training=True):
         timer_start = time.time()
         model_inputs = prepare_batch_inputs(batch[1], opt.device, non_blocking=opt.pin_memory)
         prepare_inputs_time.update(time.time() - timer_start)
-        # logger.info("model_inputs {}"
-        #             .format({k: (type(k), v.shape if isinstance(v, torch.Tensor) else v)
-        #                      for k, v in model_inputs.items()}))
-        # logger.info("model_inputs \n{}".format({k: (type(v), v.shape, v.dtype) for k, v in model_inputs.items()}))
+        logger.info("model_inputs {}"
+                    .format({k: (type(k), v.shape if isinstance(v, torch.Tensor) else v)
+                             for k, v in model_inputs.items()}))
+        logger.info("model_inputs \n{}".format({k: (type(v), v.shape, v.dtype) for k, v in model_inputs.items()}))
         timer_start = time.time()
         loss, loss_dict = model(**model_inputs)
         model_forward_time.update(time.time() - timer_start)
